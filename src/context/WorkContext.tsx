@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -10,14 +11,13 @@ import {
 
 export type WorkRecord = {
     id: string;
-    packages: number;
-    hours: number;
-    efficient: number;
-    date: string;
-
-    startTime?: string;
-    endTime?: string;
-    entries?: number[];
+    student: boolean;
+    warehouse: string;
+    norm: number;
+    normPercent: number;
+    rateTier: 100 | 115 | 125;
+    ratePerPackage: number;
+    earnings: number;
 };
 
 interface WorkContextType {
@@ -34,7 +34,9 @@ export function useWorkContext() {
     const context = useContext(WorkContext);
 
     if (!context) {
-        throw new Error("useWorkContext must be used within WorkProvider");
+        throw new Error(
+            "useWorkContext must be used within WorkProvider"
+        );
     }
 
     return context;
@@ -48,33 +50,49 @@ export function WorkProvider({
     const [records, setRecords] = useState<WorkRecord[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
 
-    // Завантажуємо записи з localStorage
+    // Завантажуємо записи після монтування компонента
     useEffect(() => {
+        let loadedRecords: WorkRecord[] = [];
+
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
 
             if (stored) {
-                const parsed: WorkRecord[] = JSON.parse(stored);
+                const parsed: unknown = JSON.parse(stored);
 
                 if (Array.isArray(parsed)) {
-                    setRecords(parsed);
+                    loadedRecords = parsed;
                 }
             }
         } catch (error) {
-            console.error("Помилка завантаження записів:", error);
-        } finally {
-            setIsLoaded(true);
+            console.error(
+                "Помилка завантаження записів:",
+                error
+            );
         }
+
+        // Оновлюємо стан через чергу мікрозадач,
+        // щоб не викликати setState синхронно в тілі ефекту.
+        queueMicrotask(() => {
+            setRecords(loadedRecords);
+            setIsLoaded(true);
+        });
     }, []);
 
-    // Зберігаємо записи після завантаження
+    // Зберігаємо записи лише після завершення завантаження
     useEffect(() => {
         if (!isLoaded) return;
 
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(records)
+            );
         } catch (error) {
-            console.error("Помилка збереження записів:", error);
+            console.error(
+                "Помилка збереження записів:",
+                error
+            );
         }
     }, [records, isLoaded]);
 
@@ -90,12 +108,18 @@ export function WorkProvider({
 
     // Видаляємо запис
     function deleteRecord(id: string) {
-        setRecords((prev) => prev.filter((record) => record.id !== id));
+        setRecords((prev) =>
+            prev.filter((record) => record.id !== id)
+        );
     }
 
     return (
         <WorkContext.Provider
-            value={{ records, addRecord, deleteRecord }}
+            value={{
+                records,
+                addRecord,
+                deleteRecord,
+            }}
         >
             {children}
         </WorkContext.Provider>
