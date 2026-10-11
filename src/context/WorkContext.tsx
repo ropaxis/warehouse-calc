@@ -18,6 +18,8 @@ export type WorkRecord = {
     rateTier: 100 | 115 | 125;
     ratePerPackage: number;
     earnings: number;
+    packages: number;
+    hours: number;
 };
 
 interface WorkContextType {
