@@ -1,129 +1,92 @@
-
 "use client";
 
-import {
-    createContext,
-    useContext,
-    useState,
-    useEffect,
-    ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
 export type WorkRecord = {
-    id: string;
-    student: boolean;
-    warehouse: string;
-    norm: number;
-    normPercent: number;
-    rateTier: 100 | 115 | 125;
-    ratePerPackage: number;
-    earnings: number;
-    packages: number;
-    hours: number;
+  id: string;
+  student?: boolean;
+  warehouse?: string;
+  norm?: number;
+  normPercent?: number;
+  rateTier?: 100 | 115 | 125;
+  ratePerPackage?: number;
+  earnings?: number;
+  bonus?: number;
+  packages: number;
+  hours: number;
+  efficient?: number;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  entries?: number[];
 };
 
 interface WorkContextType {
-    records: WorkRecord[];
-    addRecord: (record: Omit<WorkRecord, "id">) => void;
-    deleteRecord: (id: string) => void;
+  records: WorkRecord[];
+  addRecord: (record: Omit<WorkRecord, "id">) => void;
+  updateRecord: (id: string | number, updates: Partial<WorkRecord>) => void;
+  deleteRecord: (id: string | number) => void;
 }
 
 const WorkContext = createContext<WorkContextType | null>(null);
-
 const STORAGE_KEY = "warehouse-work-records";
 
 export function useWorkContext() {
-    const context = useContext(WorkContext);
-
-    if (!context) {
-        throw new Error(
-            "useWorkContext must be used within WorkProvider"
-        );
-    }
-
-    return context;
+  const context = useContext(WorkContext);
+  if (!context) throw new Error("useWorkContext must be used within WorkProvider");
+  return context;
 }
 
-export function WorkProvider({
-    children,
-}: {
-    children: ReactNode;
-}) {
-    const [records, setRecords] = useState<WorkRecord[]>([]);
-    const [isLoaded, setIsLoaded] = useState(false);
+export function WorkProvider({ children }: { children: ReactNode }) {
+  const [records, setRecords] = useState<WorkRecord[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-    // Завантажуємо записи після монтування компонента
-    useEffect(() => {
-        let loadedRecords: WorkRecord[] = [];
-
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-
-            if (stored) {
-                const parsed: unknown = JSON.parse(stored);
-
-                if (Array.isArray(parsed)) {
-                    loadedRecords = parsed;
-                }
-            }
-        } catch (error) {
-            console.error(
-                "Помилка завантаження записів:",
-                error
-            );
-        }
-
-        // Оновлюємо стан через чергу мікрозадач,
-        // щоб не викликати setState синхронно в тілі ефекту.
-        queueMicrotask(() => {
-            setRecords(loadedRecords);
-            setIsLoaded(true);
-        });
-    }, []);
-
-    // Зберігаємо записи лише після завершення завантаження
-    useEffect(() => {
-        if (!isLoaded) return;
-
-        try {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(records)
-            );
-        } catch (error) {
-            console.error(
-                "Помилка збереження записів:",
-                error
-            );
-        }
-    }, [records, isLoaded]);
-
-    // Додаємо новий запис
-    function addRecord(record: Omit<WorkRecord, "id">) {
-        const newRecord: WorkRecord = {
-            ...record,
-            id: crypto.randomUUID(),
-        };
-
-        setRecords((prev) => [...prev, newRecord]);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed)) setRecords(parsed as WorkRecord[]);
+      }
+    } catch (error) {
+      console.error("Помилка завантаження записів:", error);
+    } finally {
+      setIsLoaded(true);
     }
+  }, []);
 
-    // Видаляємо запис
-    function deleteRecord(id: string) {
-        setRecords((prev) =>
-            prev.filter((record) => record.id !== id)
-        );
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    } catch (error) {
+      console.error("Помилка збереження записів:", error);
     }
+  }, [records, isLoaded]);
 
-    return (
-        <WorkContext.Provider
-            value={{
-                records,
-                addRecord,
-                deleteRecord,
-            }}
-        >
-            {children}
-        </WorkContext.Provider>
-    );
+  function addRecord(record: Omit<WorkRecord, "id">) {
+    const newRecord: WorkRecord = {
+      ...record,
+      id: typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `day-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    };
+    setRecords((prev) => [...prev, newRecord]);
+  }
+
+  function updateRecord(id: string | number, updates: Partial<WorkRecord>) {
+    setRecords((prev) => prev.map((record) =>
+      String(record.id) === String(id) ? { ...record, ...updates } : record
+    ));
+  }
+
+  function deleteRecord(id: string | number) {
+    setRecords((prev) => prev.filter((record) => String(record.id) !== String(id)));
+  }
+
+  return (
+    <WorkContext.Provider value={{ records, addRecord, updateRecord, deleteRecord }}>
+      {children}
+    </WorkContext.Provider>
+  );
 }
