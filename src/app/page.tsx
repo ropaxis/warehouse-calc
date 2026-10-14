@@ -323,6 +323,7 @@ export default function Home() {
   const [editForm, setEditForm] = useState<WorkDay | null>(null);
   const [editPackagesInput, setEditPackagesInput] = useState("");
   const [editBonusInput, setEditBonusInput] = useState("");
+  const [editError, setEditError] = useState("");
 
   // Завантаження налаштувань після монтування.
 
@@ -833,26 +834,49 @@ export default function Home() {
     setEditForm({ ...day, bonus: Number(day.bonus) || 0 });
     setEditPackagesInput(String(day.packages ?? 0));
     setEditBonusInput(String(Number(day.bonus) || 0));
+    setEditError("");
   }
 
   function saveEditedDay() {
+    if (!editForm) {
+      setEditError("Не вдалося знайти день для редагування. Закрий і відкрий форму ще раз.");
+      return;
+    }
 
-    if (!editForm || !editForm.warehouse || !editForm.date || !editForm.startTime || !editForm.endTime) return;
+    if (!editForm.warehouse || !WAREHOUSES[editForm.warehouse] || !editForm.date || !editForm.startTime || !editForm.endTime) {
+      setEditError("Заповни дату, склад, час початку та час завершення.");
+      return;
+    }
 
-    const start = new Date(`${editForm.date}T${editForm.startTime}:00`);
+    // Парсимо HH:mm вручну: Date(...T... ) може по-різному обробляти час
+    // на різних мобільних браузерах та локалях.
+    const parseTime = (value: string): number | null => {
+      const match = value.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!match) return null;
+      const hours = Number(match[1]);
+      const minutes = Number(match[2]);
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+      return hours * 60 + minutes;
+    };
 
-    let end = new Date(`${editForm.date}T${editForm.endTime}:00`);
+    const startMinutes = parseTime(editForm.startTime);
+    const endMinutes = parseTime(editForm.endTime);
 
-    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return;
+    if (startMinutes === null || endMinutes === null) {
+      setEditError("Не вдалося прочитати час. Вибери початок і кінець повторно.");
+      return;
+    }
 
+    let durationMinutes = endMinutes - startMinutes;
     // Підтримка змін, що переходять через північ.
+    if (durationMinutes < 0) durationMinutes += 24 * 60;
 
-    if (end.getTime() < start.getTime()) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    if (durationMinutes <= 0) {
+      setEditError("Час завершення має відрізнятися від часу початку.");
+      return;
+    }
 
-    const hoursRaw = (end.getTime() - start.getTime()) / 3600000;
-
-    if (hoursRaw <= 0) return;
-
+    const hoursRaw = durationMinutes / 60;
     const parsedPackages = Number(editPackagesInput);
     const parsedBonus = Number(editBonusInput);
 
@@ -864,9 +888,11 @@ export default function Home() {
       !Number.isFinite(parsedBonus) ||
       parsedBonus < 0
     ) {
+      setEditError("Перевір кількість упаковок і додатки: введи числа не менші за 0.");
       return;
     }
 
+    setEditError("");
     const packages = parsedPackages;
 
     const hours = Math.round(hoursRaw * 100) / 100;
@@ -1664,6 +1690,7 @@ export default function Home() {
                   {editForm && editingDayId !== null && String(editingDayId) === String(day.id) && (
                     <div className="mt-4 space-y-3 rounded-lg border border-blue-300 bg-blue-50 p-4 text-gray-900">
                       <h3 className="font-bold">Редагування робочого дня</h3>
+                      {editError && <p role="alert" className="rounded bg-red-100 p-3 text-sm text-red-800">{editError}</p>}
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <label className="text-sm">Дата
                           <input type="date" value={editForm.date ?? ""} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} className="mt-1 w-full min-w-0 rounded border border-gray-300 bg-white p-3 text-base text-gray-900" />
@@ -1696,6 +1723,7 @@ export default function Home() {
                           setEditForm(null);
                           setEditPackagesInput("");
                           setEditBonusInput("");
+                          setEditError("");
                         }} className="rounded border border-gray-300 px-4 py-3">Скасувати</button>
                       </div>
                     </div>
