@@ -294,6 +294,8 @@ export default function Home() {
 
   const [currentMonth, setCurrentMonth] = useState("");
 
+  const [archiveMonth, setArchiveMonth] = useState("");
+
   const [showEndConfirmation, setShowEndConfirmation] =
 
     useState(false);
@@ -337,7 +339,9 @@ export default function Home() {
 
       setStudentLoaded(true);
 
-      setCurrentMonth(getLocalMonth(new Date()));
+      const thisMonth = getLocalMonth(new Date());
+      setCurrentMonth(thisMonth);
+      setArchiveMonth(thisMonth);
 
       // Відновлюємо незавершену сесію після перезавантаження сторінки.
 
@@ -560,6 +564,56 @@ export default function Home() {
     0
 
   );
+
+  // Загальна статистика за весь час. Записи не видаляються при зміні місяця.
+  const allPackages = records.reduce((total, record) => total + (Number(record.packages) || 0), 0);
+  const allHours = records.reduce((total, record) => total + (Number(record.hours) || 0), 0);
+  const allEarnings = records.reduce((total, record) => {
+    const day = record as WorkDay;
+    return total + (Number(day.earnings) || 0) + (Number(day.bonus) || 0);
+  }, 0);
+  const allEfficiency = allHours > 0 ? allPackages / allHours : 0;
+
+  // Архів складається з усіх місяців, у яких є записи, плюс поточний місяць.
+  const archiveMonths = Array.from(new Set([
+    currentMonth,
+    ...records.map((record) => {
+      const date = (record as WorkDay).date;
+      return typeof date === "string" && date.length >= 7 ? date.slice(0, 7) : "";
+    }),
+  ].filter(Boolean))).sort((a, b) => b.localeCompare(a));
+
+  const archiveRecords = records
+    .filter((record) => {
+      if (archiveMonth === "__all__") return true;
+      const date = (record as WorkDay).date;
+      return typeof date === "string" && date.startsWith(archiveMonth);
+    })
+    .sort((a, b) => {
+      const dayA = a as WorkDay;
+      const dayB = b as WorkDay;
+      const dateCompare = (dayB.date || "").localeCompare(dayA.date || "");
+      if (dateCompare !== 0) return dateCompare;
+      return (dayB.startTime || "").localeCompare(dayA.startTime || "");
+    });
+
+  const archivePackages = archiveRecords.reduce((total, record) => total + (Number(record.packages) || 0), 0);
+  const archiveHours = archiveRecords.reduce((total, record) => total + (Number(record.hours) || 0), 0);
+  const archiveEarnings = archiveRecords.reduce((total, record) => {
+    const day = record as WorkDay;
+    return total + (Number(day.earnings) || 0) + (Number(day.bonus) || 0);
+  }, 0);
+  const archiveEfficiency = archiveHours > 0 ? archivePackages / archiveHours : 0;
+  const archiveNormRecords = archiveRecords.filter((record) => {
+    const day = record as WorkDay;
+    return typeof day.norm === "number" && day.norm > 0 && Number(day.hours) > 0;
+  });
+  const archiveAveragePercent = archiveNormRecords.length > 0
+    ? archiveNormRecords.reduce((total, record) => {
+        const day = record as WorkDay;
+        return total + calculateNormPercent(Number(day.packages) || 0, Number(day.hours) || 0, day.norm || 0);
+      }, 0) / archiveNormRecords.length
+    : 0;
 
   const currentNorm =
 
@@ -1105,7 +1159,7 @@ export default function Home() {
 
       </section>
 
-      {/* Налаштування перед роботою */}
+            {/* Налаштування перед роботою */}
 
       <section className="space-y-4 rounded-xl border border-gray-300 bg-white p-5 text-gray-900 shadow-sm">
 
@@ -1609,15 +1663,43 @@ export default function Home() {
 
         </button>
 
-        {showHistory && (records.length === 0 ? (
+        {showHistory && (
+          <div className="space-y-4">
+            <section className="rounded-xl border border-gray-300 bg-white p-5 text-gray-900 shadow-sm">
+              <label htmlFor="archive-month" className="mb-2 block font-bold">Архів за місяцями</label>
+              <select
+                id="archive-month"
+                value={archiveMonth}
+                onChange={(event) => setArchiveMonth(event.target.value)}
+                className="w-full rounded-lg border border-gray-400 bg-white px-3 py-3 text-gray-900"
+              >
+                <option value="__all__">За весь час</option>
+                {archiveMonths.map((month) => (
+                  <option key={month} value={month}>
+                    {new Date(`${month}-01T12:00:00`).toLocaleDateString("uk-UA", { month: "long", year: "numeric" })}
+                  </option>
+                ))}
+              </select>
+              <h3 className="mt-5 text-lg font-bold">
+                {archiveMonth === "__all__"
+                  ? "Загальна статистика за весь час"
+                  : `Статистика за ${archiveMonth ? new Date(`${archiveMonth}-01T12:00:00`).toLocaleDateString("uk-UA", { month: "long", year: "numeric" }) : "місяць"}`}
+              </h3>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-sm text-gray-700">{archiveMonth === "__all__" ? "Усього упаковок" : "Упаковок"}</p><p className="text-xl font-bold">{formatNumber(archivePackages)}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-sm text-gray-700">{archiveMonth === "__all__" ? "Усього годин" : "Годин"}</p><p className="text-xl font-bold">{formatNumber(archiveHours)} год.</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-sm text-gray-700">Продуктивність</p><p className="text-xl font-bold">{formatNumber(archiveEfficiency)} упаковок/год</p></div>
+                <div className="rounded-lg bg-gray-50 p-3"><p className="text-sm text-gray-700">Середнє виконання норми</p><p className="text-xl font-bold">{formatNumber(archiveAveragePercent)}%</p></div>
+                <div className="rounded-lg bg-gray-50 p-3 sm:col-span-2"><p className="text-sm text-gray-700">{archiveMonth === "__all__" ? "Загальний заробіток" : "Заробіток"}</p><p className="text-2xl font-bold text-green-700">{formatMoney(archiveEarnings)} zł</p><p className="text-sm text-gray-600">Робочих днів: {archiveRecords.length}</p></div>
+              </div>
+            </section>
 
-          <p className="text-gray-600">Завершених днів поки немає.</p>
-
-        ) : (
-
-          <div className="space-y-3 rounded-xl border border-gray-300 bg-white p-5 text-gray-900 shadow-sm">
-
-            {[...records].reverse().map((record) => {
+            {archiveRecords.length === 0 ? (
+              <p className="text-gray-600">{archiveMonth === "__all__" ? "Завершених робочих днів поки немає." : "За цей місяць завершених робочих днів немає."}</p>
+            ) : (
+              <div className="space-y-3 rounded-xl border border-gray-300 bg-white p-5 text-gray-900 shadow-sm">
+                <p className="text-sm text-gray-600">Дні від найновішого до найстарішого. Перший робочий день місяця буде внизу списку.</p>
+                {archiveRecords.map((record) => {
 
               const day = record as WorkDay;
 
@@ -1735,11 +1817,10 @@ export default function Home() {
 
             })}
 
+              </div>
+            )}
           </div>
-
-        ))}
-
-
+        )}
 
       </section>
 
