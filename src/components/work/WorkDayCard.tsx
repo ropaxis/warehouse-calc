@@ -12,9 +12,9 @@ export function WorkDayCard({ day, onEdit, onDelete }: Props) {
         <p className="font-bold">{day.date}</p>
         <p>Склад: {day.warehouse ?? "Старий запис"}</p>
         <p>Статус: {day.student === undefined ? "Не збережено" : day.student ? "Студент" : "Не студент"}</p>
-        <p>Упаковок: {formatNumber(day.packages)}</p><p>Годин: {formatNumber(day.hours)}</p>
+        <p className="font-medium text-green-700">Упаковок: {formatNumber(day.packages)}</p><p>Годин: {formatNumber(day.hours)}</p>
         {day.norm !== undefined && <><p>Погодинна норма: {day.norm} упаковок/год</p><p>Виконання норми: {formatNumber(normPercent)}%</p><p>Поріг ставки: {day.rateTier}%</p><p>Ставка: {day.ratePerPackage?.toLocaleString("pl-PL")} zł/упаковку</p></>}
-        <p>Продуктивність: {formatNumber(efficiency)} упаковок/год</p>
+        <p className="font-medium text-violet-900">Продуктивність: <span className="font-bold">{formatNumber(efficiency)}</span> упаковок/год</p>
         <p>Заробіток за упаковки: {day.earnings === undefined ? "Немає даних" : `${formatMoney(day.earnings)} zł`}</p>
         <p>Додатки: {formatMoney(Number(day.bonus) || 0)} zł</p>
         <p className="font-medium text-green-700">Разом: {day.earnings === undefined ? "Немає даних" : `${formatMoney((Number(day.earnings) || 0) + (Number(day.bonus) || 0))} zł`}</p>
