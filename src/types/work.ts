@@ -9,6 +9,7 @@ export type WorkDay = {
   hours: number;
   efficient: number;
   date: string;
+  endDate?: string;
   startTime?: string;
   endTime?: string;
   entries?: number[];
